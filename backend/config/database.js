@@ -1,12 +1,13 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
+// Railway MySQL environment variables
 const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'lms_db',
-  port: process.env.DB_PORT || 3306,
+  host: process.env.MYSQLHOST || process.env.DB_HOST || 'localhost',
+  user: process.env.MYSQLUSER || process.env.DB_USER || 'root',
+  password: process.env.MYSQLPASSWORD || process.env.DB_PASSWORD || '',
+  database: process.env.MYSQLDATABASE || process.env.DB_NAME || 'lms_db',
+  port: process.env.MYSQLPORT || process.env.DB_PORT || 3306,
   charset: 'utf8mb4',
   connectTimeout: 60000,
   acquireTimeout: 60000,
@@ -16,13 +17,24 @@ const dbConfig = {
   queueLimit: 0
 };
 
+// Log database configuration (without password)
+console.log('🗄️ Database Configuration:');
+console.log(`   Host: ${dbConfig.host}`);
+console.log(`   Database: ${dbConfig.database}`);
+console.log(`   Port: ${dbConfig.port}`);
+console.log(`   User: ${dbConfig.user}`);
+console.log(`   Password: ${dbConfig.password ? 'Set' : 'Not set'}`);
+
 // Create connection pool
 const pool = mysql.createPool(dbConfig);
 
 const initDatabase = async () => {
+  let tempConnection;
   try {
+    console.log('🔄 Initializing database...');
+    
     // First, create connection without database to create it if needed
-    const tempConnection = await mysql.createConnection({
+    tempConnection = await mysql.createConnection({
       host: dbConfig.host,
       user: dbConfig.user,
       password: dbConfig.password,
@@ -38,6 +50,8 @@ const initDatabase = async () => {
     // Test the pool connection and create tables
     const connection = await pool.getConnection();
     try {
+      console.log('🔄 Creating tables...');
+      
       // Create users table
       await connection.execute(`
         CREATE TABLE IF NOT EXISTS users (
@@ -55,6 +69,7 @@ const initDatabase = async () => {
       `);
 
       console.log('✅ Users table created/verified');
+
       // Create courses table
       await connection.execute(`
         CREATE TABLE IF NOT EXISTS courses (
@@ -91,212 +106,219 @@ const initDatabase = async () => {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
 
-        console.log('✅ Enrollments table created/verified');
-        // Create course_content table for videos and materials
-        await connection.execute(`
-          CREATE TABLE IF NOT EXISTS course_content (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            course_id INT NOT NULL,
-            title VARCHAR(255) NOT NULL,
-            description TEXT,
-            content_type ENUM('video', 'document', 'quiz') NOT NULL DEFAULT 'video',
-            video_url VARCHAR(500),
-            document_url VARCHAR(500),
-            duration INT DEFAULT 0, -- in minutes
-            display_order INT DEFAULT 0,
-            is_published BOOLEAN DEFAULT TRUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
-            INDEX idx_course_id (course_id),
-            INDEX idx_content_type (content_type),
-            INDEX idx_display_order (display_order)
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        `);
+      console.log('✅ Enrollments table created/verified');
 
-        console.log('✅ Course content table created/verified');
+      // Create course_content table for videos and materials
+      await connection.execute(`
+        CREATE TABLE IF NOT EXISTS course_content (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          course_id INT NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          content_type ENUM('video', 'document', 'quiz') NOT NULL DEFAULT 'video',
+          video_url VARCHAR(500),
+          document_url VARCHAR(500),
+          duration INT DEFAULT 0, -- in minutes
+          display_order INT DEFAULT 0,
+          is_published BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+          INDEX idx_course_id (course_id),
+          INDEX idx_content_type (content_type),
+          INDEX idx_display_order (display_order)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
 
-        // Create student_progress table to track video watching
-        await connection.execute(`
-          CREATE TABLE IF NOT EXISTS student_progress (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            student_id INT NOT NULL,
-            course_id INT NOT NULL,
-            content_id INT NOT NULL,
-            progress_percentage INT DEFAULT 0,
-            is_completed BOOLEAN DEFAULT FALSE,
-            last_position INT DEFAULT 0, -- video position in seconds
-            total_time_watched INT DEFAULT 0, -- in seconds
-            last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            completed_at TIMESTAMP NULL,
-            FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
-            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
-            FOREIGN KEY (content_id) REFERENCES course_content(id) ON DELETE CASCADE,
-            UNIQUE KEY unique_progress (student_id, content_id),
-            INDEX idx_student_course (student_id, course_id),
-            INDEX idx_content (content_id)
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        `);
+      console.log('✅ Course content table created/verified');
 
-        console.log('✅ Student progress table created/verified');
-        // Create assignments table
-        await connection.execute(`
-          CREATE TABLE IF NOT EXISTS assignments (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            course_id INT NOT NULL,
-            title VARCHAR(255) NOT NULL,
-            description TEXT,
-            due_date TIMESTAMP NULL,
-            max_points INT NOT NULL DEFAULT 100,
-            assignment_type ENUM('assignment', 'quiz', 'exam') DEFAULT 'assignment',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
-            INDEX idx_course_id (course_id),
-            INDEX idx_due_date (due_date)
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        `);
+      // Create student_progress table to track video watching
+      await connection.execute(`
+        CREATE TABLE IF NOT EXISTS student_progress (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          student_id INT NOT NULL,
+          course_id INT NOT NULL,
+          content_id INT NOT NULL,
+          progress_percentage INT DEFAULT 0,
+          is_completed BOOLEAN DEFAULT FALSE,
+          last_position INT DEFAULT 0, -- video position in seconds
+          total_time_watched INT DEFAULT 0, -- in seconds
+          last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          completed_at TIMESTAMP NULL,
+          FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+          FOREIGN KEY (content_id) REFERENCES course_content(id) ON DELETE CASCADE,
+          UNIQUE KEY unique_progress (student_id, content_id),
+          INDEX idx_student_course (student_id, course_id),
+          INDEX idx_content (content_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
 
-        console.log('✅ Assignments table created/verified');
+      console.log('✅ Student progress table created/verified');
 
-        // Create submissions table
-        await connection.execute(`
-          CREATE TABLE IF NOT EXISTS submissions (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            assignment_id INT NOT NULL,
-            student_id INT NOT NULL,
-            submission_text TEXT,
-            file_url VARCHAR(500),
-            submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            grade DECIMAL(5,2),
-            feedback TEXT,
-            graded_at TIMESTAMP NULL,
-            graded_by INT NULL,
-            FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE,
-            FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
-            FOREIGN KEY (graded_by) REFERENCES users(id) ON DELETE SET NULL,
-            UNIQUE KEY unique_submission (assignment_id, student_id),
-            INDEX idx_assignment_id (assignment_id),
-            INDEX idx_student_id (student_id),
-            INDEX idx_submitted_at (submitted_at)
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        `);
+      // Create assignments table
+      await connection.execute(`
+        CREATE TABLE IF NOT EXISTS assignments (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          course_id INT NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          due_date TIMESTAMP NULL,
+          max_points INT NOT NULL DEFAULT 100,
+          assignment_type ENUM('assignment', 'quiz', 'exam') DEFAULT 'assignment',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+          INDEX idx_course_id (course_id),
+          INDEX idx_due_date (due_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
+      console.log('✅ Assignments table created/verified');
+
+      // Create submissions table
+      await connection.execute(`
+        CREATE TABLE IF NOT EXISTS submissions (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          assignment_id INT NOT NULL,
+          student_id INT NOT NULL,
+          submission_text TEXT,
+          file_url VARCHAR(500),
+          submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          grade DECIMAL(5,2),
+          feedback TEXT,
+          graded_at TIMESTAMP NULL,
+          graded_by INT NULL,
+          FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE,
+          FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (graded_by) REFERENCES users(id) ON DELETE SET NULL,
+          UNIQUE KEY unique_submission (assignment_id, student_id),
+          INDEX idx_assignment_id (assignment_id),
+          INDEX idx_student_id (student_id),
+          INDEX idx_submitted_at (submitted_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+    
+      console.log('✅ Submissions table created/verified');
+
+      // Create notifications table
+      await connection.execute(`
+        CREATE TABLE IF NOT EXISTS notifications (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          message TEXT NOT NULL,
+          type ENUM('info', 'success', 'warning', 'error') DEFAULT 'info',
+          related_entity ENUM('course', 'assignment', 'submission', 'forum') NULL,
+          related_entity_id INT NULL,
+          is_read BOOLEAN DEFAULT FALSE,
+          read_at TIMESTAMP NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          INDEX idx_user_id (user_id),
+          INDEX idx_is_read (is_read),
+          INDEX idx_created_at (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
+      console.log('✅ Notifications table created/verified');
+
+      // Create forum_categories table
+      await connection.execute(`
+        CREATE TABLE IF NOT EXISTS forum_categories (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          course_id INT NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+          INDEX idx_course_id (course_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
+      console.log('✅ Forum categories table created/verified');
+
+      // Create forum_threads table
+      await connection.execute(`
+        CREATE TABLE IF NOT EXISTS forum_threads (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          category_id INT NOT NULL,
+          author_id INT NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          content TEXT NOT NULL,
+          is_pinned BOOLEAN DEFAULT FALSE,
+          is_locked BOOLEAN DEFAULT FALSE,
+          view_count INT DEFAULT 0,
+          reply_count INT DEFAULT 0,
+          last_reply_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (category_id) REFERENCES forum_categories(id) ON DELETE CASCADE,
+          FOREIGN KEY (author_id) REFERENCES users(id),
+          INDEX idx_category_id (category_id),
+          INDEX idx_author_id (author_id),
+          INDEX idx_pinned (is_pinned),
+          INDEX idx_last_reply (last_reply_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
+      console.log('✅ Forum threads table created/verified');
+
+      // Create forum_posts table (replies)
+      await connection.execute(`
+        CREATE TABLE IF NOT EXISTS forum_posts (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          thread_id INT NOT NULL,
+          author_id INT NOT NULL,
+          content TEXT NOT NULL,
+          parent_id INT NULL,
+          is_answer BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (thread_id) REFERENCES forum_threads(id) ON DELETE CASCADE,
+          FOREIGN KEY (author_id) REFERENCES users(id),
+          FOREIGN KEY (parent_id) REFERENCES forum_posts(id) ON DELETE CASCADE,
+          INDEX idx_thread_id (thread_id),
+          INDEX idx_author_id (author_id),
+          INDEX idx_parent_id (parent_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
+      console.log('✅ Forum posts table created/verified');
+
+      // Create forum_reactions table
+      await connection.execute(`
+        CREATE TABLE IF NOT EXISTS forum_reactions (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          post_id INT NOT NULL,
+          user_id INT NOT NULL,
+          reaction_type ENUM('like', 'helpful', 'love', 'insightful') DEFAULT 'like',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY unique_reaction (post_id, user_id, reaction_type),
+          FOREIGN KEY (post_id) REFERENCES forum_posts(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id),
+          INDEX idx_post_id (post_id),
+          INDEX idx_user_id (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
+      console.log('✅ Forum reactions table created/verified');
+
+      console.log('🎉 All database tables initialized successfully!');
       
-        console.log('✅ Submissions table created/verified');
-        // Create forum_posts table
-
-
-        // Create notifications table
-        await connection.execute(`
-          CREATE TABLE IF NOT EXISTS notifications (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
-            title VARCHAR(255) NOT NULL,
-            message TEXT NOT NULL,
-            type ENUM('info', 'success', 'warning', 'error') DEFAULT 'info',
-            related_entity ENUM('course', 'assignment', 'submission', 'forum') NULL,
-            related_entity_id INT NULL,
-            is_read BOOLEAN DEFAULT FALSE,
-            read_at TIMESTAMP NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            INDEX idx_user_id (user_id),
-            INDEX idx_is_read (is_read),
-            INDEX idx_created_at (created_at)
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        `);
-
-        console.log('✅ Notifications table created/verified');
-        // Add this after your existing table creations in initDatabase function
-
-        // Create forum_categories table
-        await connection.execute(`
-          CREATE TABLE IF NOT EXISTS forum_categories (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            course_id INT NOT NULL,
-            title VARCHAR(255) NOT NULL,
-            description TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
-            INDEX idx_course_id (course_id)
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        `);
-
-        console.log('✅ Forum categories table created/verified');
-
-        // Create forum_threads table
-        await connection.execute(`
-          CREATE TABLE IF NOT EXISTS forum_threads (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            category_id INT NOT NULL,
-            author_id INT NOT NULL,
-            title VARCHAR(255) NOT NULL,
-            content TEXT NOT NULL,
-            is_pinned BOOLEAN DEFAULT FALSE,
-            is_locked BOOLEAN DEFAULT FALSE,
-            view_count INT DEFAULT 0,
-            reply_count INT DEFAULT 0,
-            last_reply_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (category_id) REFERENCES forum_categories(id) ON DELETE CASCADE,
-            FOREIGN KEY (author_id) REFERENCES users(id),
-            INDEX idx_category_id (category_id),
-            INDEX idx_author_id (author_id),
-            INDEX idx_pinned (is_pinned),
-            INDEX idx_last_reply (last_reply_at)
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        `);
-
-        console.log('✅ Forum threads table created/verified');
-
-        // Create forum_posts table (replies)
-        await connection.execute(`
-          CREATE TABLE IF NOT EXISTS forum_posts (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            thread_id INT NOT NULL,
-            author_id INT NOT NULL,
-            content TEXT NOT NULL,
-            parent_id INT NULL,
-            is_answer BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (thread_id) REFERENCES forum_threads(id) ON DELETE CASCADE,
-            FOREIGN KEY (author_id) REFERENCES users(id),
-            FOREIGN KEY (parent_id) REFERENCES forum_posts(id) ON DELETE CASCADE,
-            INDEX idx_thread_id (thread_id),
-            INDEX idx_author_id (author_id),
-            INDEX idx_parent_id (parent_id)
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        `);
-
-        console.log('✅ Forum posts table created/verified');
-
-        // Create forum_reactions table
-        await connection.execute(`
-          CREATE TABLE IF NOT EXISTS forum_reactions (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            post_id INT NOT NULL,
-            user_id INT NOT NULL,
-            reaction_type ENUM('like', 'helpful', 'love', 'insightful') DEFAULT 'like',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_reaction (post_id, user_id, reaction_type),
-            FOREIGN KEY (post_id) REFERENCES forum_posts(id) ON DELETE CASCADE,
-            FOREIGN KEY (user_id) REFERENCES users(id),
-            INDEX idx_post_id (post_id),
-            INDEX idx_user_id (user_id)
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        `);
-
-        console.log('✅ Forum reactions table created/verified');
     } finally {
       connection.release(); // Always release the connection back to the pool
     }
     
   } catch (error) {
     console.error('❌ Database initialization failed:', error.message);
-    throw error;
+    // Don't throw error during initialization to allow server to start
+    console.log('⚠️ Server will continue without database initialization');
+  } finally {
+    if (tempConnection) {
+      await tempConnection.end().catch(() => {}); // Silent fail
+    }
   }
 };
 

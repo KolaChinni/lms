@@ -1,6 +1,9 @@
 import axios from 'axios'
 
-const API_BASE_URL = 'http://localhost:5000/api'
+// Use environment variable for API base URL with fallback for development
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+
+console.log('🌐 API Base URL:', API_BASE_URL)
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -18,7 +21,12 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
-    console.log(`🟡 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`)
+    
+    // Only log in development for better performance
+    if (import.meta.env.DEV) {
+      console.log(`🟡 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`)
+    }
+    
     return config
   },
   (error) => {
@@ -32,15 +40,21 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
-    console.log(`🟢 API Response: ${response.status} ${response.config.url}`)
+    // Only log in development
+    if (import.meta.env.DEV) {
+      console.log(`🟢 API Response: ${response.status} ${response.config.url}`)
+    }
     return response
   },
   (error) => {
-    console.log('🔴 API Error Interceptor:', {
-      hasResponse: !!error.response,
-      status: error.response?.status,
-      data: error.response?.data
-    })
+    // Only log full error details in development
+    if (import.meta.env.DEV) {
+      console.log('🔴 API Error Interceptor:', {
+        hasResponse: !!error.response,
+        status: error.response?.status,
+        data: error.response?.data
+      })
+    }
 
     // Handle network errors (no response)
     if (!error.response) {
@@ -55,17 +69,21 @@ api.interceptors.response.use(
 
     // For 401 errors - login-related errors
     if (status === 401) {
-      console.log('🟡 401 Error detected:', data?.errorData?.type)
+      if (import.meta.env.DEV) {
+        console.log('🟡 401 Error detected:', data?.errorData?.type)
+      }
       
       // Check if this is a login-related error
       const isLoginError = data?.errorData?.type && [
         'ROLE_MISMATCH', 
         'INVALID_PASSWORD', 
-        'NO_ACCOUNT'
+        'NO_COUNT'
       ].includes(data.errorData.type)
       
       if (isLoginError) {
-        console.log('🟡 Returning login error to authService')
+        if (import.meta.env.DEV) {
+          console.log('🟡 Returning login error to authService')
+        }
         // Return the structured error that authService expects
         return Promise.reject({
           type: data.errorData.type,
@@ -126,14 +144,17 @@ api.interceptors.response.use(
 
 export const testConnection = async () => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/health`, { timeout: 5000 })
+    const response = await axios.get(`${API_BASE_URL}/health`, { 
+      timeout: 5000 
+    })
     return { success: true, data: response.data }
   } catch (error) {
     return { 
       success: false, 
       error: {
         type: 'CONNECTION_TEST_FAILED',
-        message: 'Cannot connect to backend server'
+        message: 'Cannot connect to backend server',
+        details: `Backend URL: ${API_BASE_URL}`
       }
     }
   }

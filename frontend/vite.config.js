@@ -14,6 +14,19 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: false, // Disable sourcemaps in production for smaller bundle
+    minify: 'terser', // Better minification
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom']
+        }
+      }
+    }
+  },
+  // This helps with environment variables
+  define: {
+    'process.env': {}
   }
 })

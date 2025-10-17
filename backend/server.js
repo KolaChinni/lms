@@ -11,7 +11,11 @@ const PORT = process.env.PORT || 5000;
 
 // ========== MIDDLEWARE SETUP ==========
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'https://your-lms-frontend.netlify.app' // ← WILL UPDATE AFTER DEPLOYMENT
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
@@ -27,7 +31,9 @@ app.get('/', (req, res) => {
   res.json({
     message: '🚀 LearnHub LMS API is running!',
     version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
+    baseUrl: process.env.RAILWAY_STATIC_URL || `http://localhost:${PORT}`,
     endpoints: {
       auth: '/api/auth/*',
       courses: '/api/courses/*',
@@ -47,7 +53,8 @@ app.get('/api/health', (req, res) => {
     message: '✅ Server is healthy and running',
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
-    port: PORT
+    port: PORT,
+    database: process.env.MYSQLDATABASE ? 'Connected' : 'Not configured'
   });
 });
 
@@ -64,7 +71,6 @@ const initializeDatabase = async () => {
   }
 };
 
-// ========== ROUTE IMPORTS WITH ERROR HANDLING ==========
 // ========== ROUTE IMPORTS WITH ERROR HANDLING ==========
 const loadRoutes = () => {
   try {
@@ -84,7 +90,7 @@ const loadRoutes = () => {
     app.use('/api/assignments', assignmentRoutes);
     app.use('/api/notifications', notificationRoutes);
     app.use('/api/blogs', blogRoutes);
-    app.use('/api/forum', forumRoutes); // FIXED: Added forum routes
+    app.use('/api/forum', forumRoutes);
     
     console.log('✅ Main routes loaded successfully');
     
@@ -123,6 +129,7 @@ const loadRoutes = () => {
     return false;
   }
 };
+
 const loadVideoRoutes = () => {
   try {
     // Only load video routes if Cloudinary is configured
@@ -162,7 +169,8 @@ app.get('/api/test', (req, res) => {
   res.json({
     success: true,
     message: 'Test route is working!',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
@@ -172,8 +180,10 @@ const startServer = async () => {
   console.log('📁 Current directory:', __dirname);
   console.log('🔧 Environment:', process.env.NODE_ENV || 'development');
   console.log('🔑 JWT Secret:', process.env.JWT_SECRET ? 'Set' : 'Not set');
-  console.log('🗄️  Database:', process.env.DB_NAME || 'lms_db');
+  console.log('🗄️  Database Host:', process.env.MYSQLHOST || 'localhost');
+  console.log('🗄️  Database Name:', process.env.MYSQLDATABASE || 'lms_db');
   console.log('☁️  Cloudinary:', process.env.CLOUDINARY_CLOUD_NAME ? 'Configured' : 'Not configured');
+  console.log('🌐 Port:', PORT);
   
   // Initialize database
   const dbReady = await initializeDatabase();
@@ -191,46 +201,45 @@ const startServer = async () => {
   }
 
   // ========== 404 HANDLER (MUST BE AFTER ALL ROUTES) ==========
-// ========== 404 HANDLER (MUST BE AFTER ALL ROUTES) ==========
- app.use('*', (req, res) => {
-   console.log('🔴 404 - Endpoint not found:', req.originalUrl);
+  app.use('*', (req, res) => {
+    console.log('🔴 404 - Endpoint not found:', req.originalUrl);
   
-   res.status(404).json({
-     success: false,
-     message: '❌ Endpoint not found',
-     path: req.originalUrl,
-     method: req.method,
-     availableEndpoints: [
-       'GET  /',
-       'GET  /api/health',
-       'GET  /api/test',
-       'POST /api/auth/register',
-       'POST /api/auth/login',
-       'GET  /api/auth/me',
-       'GET  /api/auth/test',
-       'GET  /api/courses',
-       'POST /api/courses',
-       'GET  /api/courses/:id',
-       'GET  /api/courses/teacher/my-courses',
-       'GET  /api/courses/student/my-courses',
-       'POST /api/courses/:courseId/enroll',
-      // ADD ASSIGNMENTS ENDPOINTS
-       'POST /api/assignments/courses/:courseId/assignments',
-       'GET  /api/assignments/courses/:courseId/assignments',
-       'GET  /api/assignments/student/assignments',
-       'GET  /api/assignments/student/courses/:courseId/assignments',
-       'POST /api/assignments/assignments/:assignmentId/submit',
-       'GET  /api/assignments/assignments/:assignmentId/submissions',
-       'GET  /api/assignments/student/submissions',
-       'POST /api/assignments/submissions/:submissionId/grade',
-       'GET  /api/assignments/student/grades',
-      // OTHER ENDPOINTS
-       'GET  /api/blogs',
-       'POST /api/blogs'
-     ],
-     timestamp: new Date().toISOString()
-   });
- });
+    res.status(404).json({
+      success: false,
+      message: '❌ Endpoint not found',
+      path: req.originalUrl,
+      method: req.method,
+      availableEndpoints: [
+        'GET  /',
+        'GET  /api/health',
+        'GET  /api/test',
+        'POST /api/auth/register',
+        'POST /api/auth/login',
+        'GET  /api/auth/me',
+        'GET  /api/auth/test',
+        'GET  /api/courses',
+        'POST /api/courses',
+        'GET  /api/courses/:id',
+        'GET  /api/courses/teacher/my-courses',
+        'GET  /api/courses/student/my-courses',
+        'POST /api/courses/:courseId/enroll',
+        // ADD ASSIGNMENTS ENDPOINTS
+        'POST /api/assignments/courses/:courseId/assignments',
+        'GET  /api/assignments/courses/:courseId/assignments',
+        'GET  /api/assignments/student/assignments',
+        'GET  /api/assignments/student/courses/:courseId/assignments',
+        'POST /api/assignments/assignments/:assignmentId/submit',
+        'GET  /api/assignments/assignments/:assignmentId/submissions',
+        'GET  /api/assignments/student/submissions',
+        'POST /api/assignments/submissions/:submissionId/grade',
+        'GET  /api/assignments/student/grades',
+        // OTHER ENDPOINTS
+        'GET  /api/blogs',
+        'POST /api/blogs'
+      ],
+      timestamp: new Date().toISOString()
+    });
+  });
 
   // ========== ERROR HANDLER (MUST BE LAST) ==========
   app.use((err, req, res, next) => {
@@ -245,13 +254,13 @@ const startServer = async () => {
   });
   
   // Start server
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log('\n✨ ========== SERVER STARTED SUCCESSFULLY ========== ✨');
-    console.log(`📍 Server URL: http://localhost:${PORT}`);
-    console.log(`🌐 API Base URL: http://localhost:${PORT}/api`);
-    console.log(`✅ Health Check: http://localhost:${PORT}/api/health`);
-    console.log(`✅ Test Route: http://localhost:${PORT}/api/test`);
-    console.log(`🔐 Auth Test: http://localhost:${PORT}/api/auth/test`);
+    console.log(`📍 Server URL: http://0.0.0.0:${PORT}`);
+    console.log(`🌐 API Base URL: http://0.0.0.0:${PORT}/api`);
+    console.log(`✅ Health Check: http://0.0.0.0:${PORT}/api/health`);
+    console.log(`✅ Test Route: http://0.0.0.0:${PORT}/api/test`);
+    console.log(`🔐 Auth Test: http://0.0.0.0:${PORT}/api/auth/test`);
     console.log('\n🔧 Server is ready to handle requests!');
   });
 };
