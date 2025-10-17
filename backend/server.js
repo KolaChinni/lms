@@ -14,8 +14,9 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://localhost:5173',
-    'https://your-lms-frontend.netlify.app' // ← WILL UPDATE AFTER DEPLOYMENT
-  ],
+    'https://your-lms-frontend.netlify.app', // ← WILL UPDATE AFTER DEPLOYMENT
+    process.env.CLIENT_URL // ← ADD THIS LINE FOR HOSTING
+  ].filter(Boolean), // ← ADD THIS TO REMOVE UNDEFINED VALUES
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
@@ -25,6 +26,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve static files
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Serve frontend in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../frontend/dist')));
+}
 
 // ========== BASIC ROUTES (TEST FIRST) ==========
 app.get('/', (req, res) => {
@@ -202,6 +208,11 @@ const startServer = async () => {
 
   // ========== 404 HANDLER (MUST BE AFTER ALL ROUTES) ==========
   app.use('*', (req, res) => {
+    // In production, serve frontend for non-API routes (SPA routing)
+    if (process.env.NODE_ENV === 'production' && !req.originalUrl.startsWith('/api')) {
+      return res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+    }
+
     console.log('🔴 404 - Endpoint not found:', req.originalUrl);
   
     res.status(404).json({
